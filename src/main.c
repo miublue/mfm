@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -32,6 +33,7 @@ enum {
     MODE_RENAME,
     MODE_CREATE,
     MODE_DELETE,
+    MODE_OPEN,
 };
 
 typedef struct input_t {
@@ -51,7 +53,6 @@ static char status[1024];
     }
 
 // TODO: fix scrolling
-// TODO: bookmarks
 // TODO: tabs
 
 static void init_curses();
@@ -73,6 +74,7 @@ static void update_mode_search(files_t *f);
 static void update_mode_rename(files_t *f);
 static void update_mode_create(files_t *f);
 static void update_mode_delete(files_t *f);
+static void update_mode_open(files_t *f);
 
 static void set_pos(files_t *f, int i);
 static void move_up(files_t *f);
@@ -82,13 +84,16 @@ static void scroll_up(files_t *f);
 static void scroll_down(files_t *f);
 static void prev_dir(files_t *f);
 static void next_dir(files_t *f);
+
 static void open_file(files_t *f);
 static void stat_file(files_t *f);
 static void edit_file(files_t *f);
 static void chmod_file(files_t *f);
 static void shell(files_t *f);
+static void bookmarks(files_t *f);
 
 static void select_file(files_t *f);
+static void select_all(files_t *f);
 static int file_executable(entry_t e);
 static int file_selected(entry_t e);
 
@@ -137,6 +142,7 @@ update_input(files_t *f)
 {
     int ch = getch();
     switch (ch) {
+    case CTRL('q'):
     case CTRL('c'):
         mode = MODE_NORMAL;
         return false;
@@ -458,6 +464,20 @@ select_file(files_t *f)
 }
 
 static void
+select_all(files_t *f)
+{
+    if (!f->size) return;
+
+    for (size_t i = 0; i < f->size; ++i) {
+        entry_t curr = f->data[i];
+
+        if (file_selected(curr) < 0) {
+            LIST_ADD(selected, selected.size, curr);
+        }
+    }
+}
+
+static void
 edit_file(files_t *f)
 {
     if (!f->size) return;
@@ -494,6 +514,28 @@ shell(files_t *f)
     deinit_curses();
     system(cmd);
     init_curses();
+}
+
+static void
+bookmarks(files_t *f)
+{
+    deinit_curses();
+    system("command mbm ~/.mbm");
+    init_curses();
+
+    char *home = getenv("HOME");
+    char path[1024] = {0};
+    sprintf(path, "%s/.mbmsel", home);
+    char *s = read_file(path);
+    if (strcmp(s, "NULL") == 0)
+        goto fail_bookmarks;
+
+    f->path.size = strlen(s);
+    memcpy(f->path.data, s, f->path.size);
+    list_entries(f);
+
+fail_bookmarks:
+    free(s);
 }
 
 static bool
@@ -638,6 +680,8 @@ update_mode_normal(files_t *f)
         break;
     case 'd':
     case 'D':
+    case 'x':
+    case 'X':
         last_mode = MODE_NORMAL;
         mode = MODE_DELETE;
         input.cursor = 0;
@@ -650,8 +694,21 @@ update_mode_normal(files_t *f)
         input.cursor = 0;
         input.text.size = 0;
         break;
+    case 'o':
+    case 'O':
+        last_mode = MODE_NORMAL;
+        mode = MODE_OPEN;
+        input.cursor = 0;
+        input.text.size = 0;
+        break;
     case ' ':
         select_file(f);
+        break;
+    case 'a':
+        select_all(f);
+        break;
+    case 'u':
+        selected.size = 0;
         break;
     case 'v':
         if (selected.size) {
@@ -665,10 +722,6 @@ update_mode_normal(files_t *f)
             selected.size = 0;
         }
         break;
-    case 'u':
-    case 'U':
-        selected.size = 0;
-        break;
     case 's':
     case 'S':
         shell(f);
@@ -676,6 +729,9 @@ update_mode_normal(files_t *f)
         break;
     case 'e':
         edit_file(f);
+        break;
+    case 'b':
+        bookmarks(f);
         break;
     case 'g':
     case KEY_HOME:
@@ -786,6 +842,8 @@ update_mode_delete(files_t *f)
     switch (ch) {
     case 'd':
     case 'D':
+    case 'x':
+    case 'X':
     case 'y':
     case 'Y':
     case '\n': {
@@ -813,6 +871,28 @@ update_mode_delete(files_t *f)
 }
 
 static void
+update_mode_open(files_t *f)
+{
+    render_input(f, "open with: ");
+    if (update_input(f)) {
+        last_mode = MODE_OPEN;
+        mode = MODE_NORMAL;
+
+        if (!input.text.size) return;
+        char cmd[1024] = {0};
+
+        entry_t curr = f->data[f->curr.pos];
+        sprintf(cmd, "cd \""STR_FMT"\" && "STR_FMT" "STR_FMT,
+                STR_ARG(f->path), STR_ARG(input.text), STR_ARG(curr.name));
+
+        input.text.size = input.cursor = 0;
+        deinit_curses();
+        system(cmd);
+        init_curses();
+    }
+}
+
+static void
 update_files(files_t *f)
 {
     switch (mode) {
@@ -830,6 +910,9 @@ update_files(files_t *f)
         break;
     case MODE_DELETE:
         update_mode_delete(f);
+        break;
+    case MODE_OPEN:
+        update_mode_open(f);
         break;
     default: break;
     }
