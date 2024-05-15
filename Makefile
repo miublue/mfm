@@ -8,4 +8,4 @@ all:
 	tcc -o $(OUT) $(SRC) $(INC) $(LIB)
 
 install: all
-	mv $(OUT) ~/bin/
+	mv $(OUT) /usr/local/bin/

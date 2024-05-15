@@ -85,6 +85,7 @@ static void next_dir(files_t *f);
 static void open_file(files_t *f);
 static void stat_file(files_t *f);
 static void edit_file(files_t *f);
+static void chmod_file(files_t *f);
 static void shell(files_t *f);
 
 static void select_file(files_t *f);
@@ -372,7 +373,21 @@ static void
 open_file(files_t *f)
 {
     if (!f->size) return;
-    // TODO: open file xd
+    char cmd[1024] = {0};
+
+    entry_t curr = f->data[f->curr.pos];
+    if (file_executable(curr)) {
+        sprintf(cmd, "cd \""STR_FMT"\" && ./"STR_FMT,
+                STR_ARG(f->path), STR_ARG(curr.name));
+    }
+    else {
+        sprintf(cmd, "cd \""STR_FMT"\" && command xdg-open \""STR_FMT"\"",
+            STR_ARG(f->path), STR_ARG(curr.name));
+    }
+
+    deinit_curses();
+    system(cmd);
+    init_curses();
 }
 
 static int
@@ -446,10 +461,26 @@ static void
 edit_file(files_t *f)
 {
     if (!f->size) return;
-
     char cmd[1024] = {0};
+
     sprintf(cmd, "cd \""STR_FMT"\" && command $EDITOR \""STR_FMT"\"",
         STR_ARG(f->path), STR_ARG(f->data[f->curr.pos].name));
+    deinit_curses();
+    system(cmd);
+    init_curses();
+}
+
+static void
+chmod_file(files_t *f)
+{
+    if (!f->size) return;
+    char cmd[1024] = {0};
+
+    entry_t curr = f->data[f->curr.pos];
+    char chmod = file_executable(curr)? '-' : '+';
+
+    sprintf(cmd, "cd \""STR_FMT"\" && chmod %cx \""STR_FMT"\"",
+            STR_ARG(f->path), chmod, STR_ARG(curr.name));
     deinit_curses();
     system(cmd);
     init_curses();
@@ -555,6 +586,10 @@ update_mode_normal(files_t *f)
         f->curr.pos = f->curr.offset = 0;
         list_entries(f);
         break;
+    case '*':
+        chmod_file(f);
+        list_entries(f);
+        break;
     case CTRL('f'):
     case '/':
         STATUS("%s", "");
@@ -637,29 +672,36 @@ update_mode_normal(files_t *f)
     case 's':
     case 'S':
         shell(f);
+        list_entries(f);
         break;
     case 'e':
         edit_file(f);
         break;
+    case 'g':
     case KEY_HOME:
         if (!f->size) break;
         f->curr.pos = 0;
         scroll_center(f);
         break;
+    case 'G':
     case KEY_END:
         if (!f->size) break;
         f->curr.pos = f->size-1;
         scroll_center(f);
         break;
+    case 'k':
     case KEY_UP:
         move_up(f);
         break;
+    case 'j':
     case KEY_DOWN:
         move_down(f);
         break;
+    case 'h':
     case KEY_LEFT:
         prev_dir(f);
         break;
+    case 'l':
     case KEY_RIGHT:
     case '\n':
         if (!f->size) break;
