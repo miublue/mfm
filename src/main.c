@@ -533,6 +533,7 @@ bookmarks(files_t *f)
     f->path.size = strlen(s);
     memcpy(f->path.data, s, f->path.size);
     list_entries(f);
+    f->curr.pos = f->curr.offset = 0;
 
 fail_bookmarks:
     free(s);
