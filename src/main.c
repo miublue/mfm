@@ -530,8 +530,11 @@ bookmarks(files_t *f)
     if (strcmp(s, "NULL") == 0)
         goto fail_bookmarks;
 
-    f->path.size = strlen(s);
-    memcpy(f->path.data, s, f->path.size);
+    f->path.size = 0;
+    for (size_t i = 0; i < strlen(s); ++i) {
+        LIST_ADD(f->path, f->path.size, s[i]);
+    }
+    
     list_entries(f);
     f->curr.pos = f->curr.offset = 0;
 
