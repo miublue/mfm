@@ -9,7 +9,9 @@
 #define ALLOC_STRING (string_t) LIST_ALLOC(char)
 #define EMPTY_STRING LIST_EMPTY(string_t)
 
-#define MAX_PATH_SZ 1024
+#define MAX_PATH_SZ 4096
+#define MAX_CMD_SZ 2048
+#define CMD_RET_SZ (2048*8)
 
 typedef struct cursor_t {
     int pos, offset;

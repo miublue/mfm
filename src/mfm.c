@@ -7,10 +7,8 @@
 #include "mexec.h"
 #include "mfm.h"
 
-#define MAX_FILES_SZ (1024*8)
-#define MAX_CMD_SZ (1024*2)
-
 static entry_t next_entry(char *entries, int *pos);
+static char *exec_ls(char *path);
 
 char*
 string_to_cstr(string_t str)
@@ -121,7 +119,7 @@ copy_selected_entries(files_t *f, selection_t *sel)
 
     for (int i = 0; i < sel->size; ++i) {
         entry_t entry = sel->data[i];
-        sprintf(cmd, "cp \"%s/"STR_FMT"\" "STR_FMT"/",
+        sprintf(cmd, "cp -r \"%s/"STR_FMT"\" "STR_FMT"/",
             entry.path, STR_ARG(entry.name), STR_ARG(f->path));
         res = execscript(cmd);
         if (res) free(res);
@@ -157,12 +155,8 @@ void
 list_entries(files_t *f)
 {
     f->size = 0;
-    char files[MAX_FILES_SZ] = {0};
-    char cmd[MAX_CMD_SZ] = {0};
     char *path = string_to_cstr(f->path);
-
-    sprintf(cmd, "ls -A1p --group-directories-first --color=none \"%s\"", path);
-    char *entries = execscript(cmd);
+    char *entries = exec_ls(path);
     int pos = 0;
 
     while (pos < strlen(entries)) {
@@ -199,4 +193,30 @@ next_entry(char *entries, int *pos)
 
     *pos = i;
     return e;
+}
+
+static char*
+exec_ls(char *path)
+{
+    char cmd[MAX_CMD_SZ] = {0};
+    sprintf(cmd, "ls -A1p --group-directories-first --color=none \"%s\"", path);
+
+	FILE *fp;
+	char retval[CMD_RET_SZ+1];
+	size_t rv;
+
+	memset(retval, 0, sizeof(retval));
+
+	fp = popen(cmd, "r");
+	if (fp == NULL)
+		return smprintf("");
+
+	rv = fread(retval, 1, sizeof(retval), fp);
+
+	pclose(fp);
+	if (rv == 0)
+		return smprintf("");
+	retval[strlen(retval)-1] = '\0';
+
+	return smprintf("%s", retval);
 }

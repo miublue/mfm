@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <ncurses.h>
@@ -53,7 +54,8 @@ static char status[1024];
     }
 
 // TODO: fix scrolling
-// TODO: tabs
+// TODO: 'share' selection in multiple instances... or add tabs
+// ...... or both
 
 static void init_curses();
 static void deinit_curses();
@@ -133,7 +135,7 @@ quit(files_t *f)
     if (!home) return;
 
     sprintf(file, "%s/.mfmdir", home);
-    sprintf(path, STR_FMT"\n", STR_ARG(f->path));
+    sprintf(path, STR_FMT, STR_ARG(f->path));
     write_file(file, path);
 }
 
@@ -183,8 +185,10 @@ update_input(files_t *f)
             ++input.cursor;
         break;
     default:
-        LIST_ADD(input.text, input.cursor, ch);
-        ++input.cursor;
+        if (isprint(ch)) {
+            LIST_ADD(input.text, input.cursor, ch);
+            ++input.cursor;
+        }
         break;
     }
     return false;
@@ -927,6 +931,7 @@ main(int argc, const char *argv[])
 {
     string_t path = { .data = "./", .alloc = 2, .size = 2 };
     files_t files = init_files(path);
+
     list_entries(&files);
     init_curses();
 
